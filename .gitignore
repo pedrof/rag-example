@@ -1,0 +1,5 @@
+.env
+*.swp
+*Zone.Identifier
+__pycache__/
+.venv/

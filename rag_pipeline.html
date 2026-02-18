@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG Pipeline – Teaching Diagram</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --border:   #30363d;
+    --accent1:  #58a6ff; /* blue  – offline phase */
+    --accent2:  #3fb950; /* green – online phase  */
+    --accent3:  #f78166; /* red   – LLM / answer  */
+    --gold:     #e3b341; /* shared model highlight */
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'IBM Plex Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 24px 80px;
+  }
+
+  /* ── HEADER ── */
+  header {
+    text-align: center;
+    margin-bottom: 52px;
+  }
+  header .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  header h1 {
+    font-size: clamp(26px, 4vw, 40px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  header h1 span { color: var(--accent1); }
+  header p {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 540px;
+    margin-inline: auto;
+    line-height: 1.6;
+  }
+
+  /* ── PHASE WRAPPER ── */
+  .phases {
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+    width: 100%;
+    max-width: 960px;
+  }
+
+  /* ── PHASE BLOCK ── */
+  .phase {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+  }
+  .phase-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .phase-header h2 {
+    font-size: 13px;
+    font-family: var(--mono);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .phase-header .badge {
+    margin-left: auto;
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid;
+  }
+
+  .offline .phase-dot  { background: var(--accent1); }
+  .offline .phase-header h2 { color: var(--accent1); }
+  .offline .badge { color: var(--accent1); border-color: var(--accent1); }
+
+  .online .phase-dot  { background: var(--accent2); }
+  .online .phase-header h2 { color: var(--accent2); }
+  .online .badge { color: var(--accent2); border-color: var(--accent2); }
+
+  /* ── PIPELINE ROW ── */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    padding: 32px 28px;
+    gap: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  /* ── NODE ── */
+  .node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    flex: 1;
+    min-width: 110px;
+    position: relative;
+  }
+  .node-icon {
+    width: 56px; height: 56px;
+    border-radius: 14px;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .node-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+    margin-bottom: 4px;
+  }
+  .node-sub {
+    font-size: 10.5px;
+    color: var(--muted);
+    font-family: var(--mono);
+    line-height: 1.4;
+    max-width: 108px;
+  }
+
+  /* colour per phase */
+  .offline .node-icon { border-color: var(--accent1); box-shadow: 0 0 18px #58a6ff22; }
+  .online  .node-icon { border-color: var(--accent2); box-shadow: 0 0 18px #3fb95022; }
+
+  /* shared embedding model gets gold ring */
+  .node.shared .node-icon {
+    border-color: var(--gold) !important;
+    box-shadow: 0 0 22px #e3b34140 !important;
+  }
+  .node.shared::after {
+    content: '↕ shared';
+    font-size: 9.5px;
+    font-family: var(--mono);
+    color: var(--gold);
+    margin-top: 6px;
+    letter-spacing: 0.08em;
+  }
+
+  /* answer node */
+  .node.answer .node-icon {
+    border-color: var(--accent3);
+    box-shadow: 0 0 22px #f7816640;
+  }
+
+  /* ── ARROWS ── */
+  .arrow {
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    flex-shrink: 0;
+    align-self: flex-start;
+    margin-top: 18px; /* vertically centre with icon */
+  }
+  .arrow svg { display: block; }
+
+  .offline .arrow path { stroke: var(--accent1); }
+  .online  .arrow path { stroke: var(--accent2); }
+  .arrow.to-answer path { stroke: var(--accent3); }
+
+  /* ── CALLOUT STRIP ── */
+  .callout-strip {
+    display: flex;
+    gap: 12px;
+    padding: 0 28px 28px;
+    flex-wrap: wrap;
+  }
+  .callout {
+    flex: 1;
+    min-width: 200px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .callout strong { color: var(--text); font-size: 12px; display: block; margin-bottom: 3px; }
+
+  /* ── WITHOUT / WITH RAG ── */
+  .compare {
+    max-width: 960px;
+    width: 100%;
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .compare-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    padding: 24px;
+  }
+  .compare-card h3 {
+    font-size: 12px;
+    font-family: var(--mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .compare-card.without h3 { color: var(--accent3); }
+  .compare-card.with    h3 { color: var(--accent2); }
+  .compare-card p {
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.65;
+  }
+  .compare-card p strong { color: var(--text); }
+
+  /* ── STUDENT GUIDE ── */
+  .guide {
+    max-width: 960px;
+    width: 100%;
+    margin-top: 12px;
+  }
+  .guide h2 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .guide h2 span { color: var(--accent1); }
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .step {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .step-num {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .step:nth-child(1) .step-num { background: #58a6ff18; color: var(--accent1); border: 1px solid #58a6ff44; }
+  .step:nth-child(2) .step-num { background: #58a6ff18; color: var(--accent1); border: 1px solid #58a6ff44; }
+  .step:nth-child(3) .step-num { background: #3fb95018; color: var(--accent2); border: 1px solid #3fb95044; }
+  .step:nth-child(4) .step-num { background: #f7816618; color: var(--accent3); border: 1px solid #f7816644; }
+  .step-body h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .step:nth-child(1) .step-body h3,
+  .step:nth-child(2) .step-body h3 { color: var(--accent1); }
+  .step:nth-child(3) .step-body h3 { color: var(--accent2); }
+  .step:nth-child(4) .step-body h3 { color: var(--accent3); }
+  .step-body p {
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.65;
+  }
+  .step-body code {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--gold);
+  }
+
+  footer {
+    margin-top: 64px;
+    font-size: 11px;
+    font-family: var(--mono);
+    color: #444c56;
+    letter-spacing: 0.06em;
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════ HEADER ════════════════════════════ -->
+<header>
+  <div class="eyebrow">AI / NLP · Teaching Reference</div>
+  <h1>Retrieval-<span>Augmented</span> Generation</h1>
+  <p>How RAG lets a language model answer questions grounded in <em>your</em> documents — not just its training data.</p>
+</header>
+
+<!-- ════════════════════════════ PHASES ════════════════════════════ -->
+<div class="phases">
+
+  <!-- ── OFFLINE PHASE ── -->
+  <div class="phase offline">
+    <div class="phase-header">
+      <div class="phase-dot"></div>
+      <h2>Phase 1 · Offline — Indexing</h2>
+      <div class="badge">Done once</div>
+    </div>
+    <div class="pipeline">
+
+      <div class="node">
+        <div class="node-icon">📄</div>
+        <div class="node-label">Documents</div>
+        <div class="node-sub">Raw text, PDFs, notes</div>
+      </div>
+
+      <div class="arrow">
+        <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
+          <path d="M2 8h22M18 3l6 5-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+
+      <div class="node">
+        <div class="node-icon">✂️</div>
+        <div class="node-label">Chunking</div>
+        <div class="node-sub">Overlapping word windows</div>
+      </div>
+
+      <div class="arrow">
+        <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
+          <path d="M2 8h22M18 3l6 5-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+
+      <div class="node shared">
+        <div class="node-icon">🔢</div>
+        <div class="node-label">Embedding Model</div>
+        <div class="node-sub">sentence-transformers</div>
+      </div>
+
+      <div class="arrow">
+        <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
+          <path d="M2 8h22M18 3l6 5-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+
+      <div class="node">
+        <div class="node-icon">🗄️</div>
+        <div class="node-label">Vector Index</div>
+        <div class="node-sub">Matrix of chunk vectors</div>
+      </div>
+
+    </div><!-- pipeline -->
+
+    <div class="callout-strip">
+      <div class="callout">
+        <strong>Chunking detail</strong>
+        Slides a window of N words across the document with a stride smaller than the window, so adjacent chunks overlap. Overlap prevents a sentence from being "cut" between two chunks and losing context.
+      </div>
+      <div class="callout">
+        <strong>Embedding detail</strong>
+        Each chunk → a dense vector of ~384–768 floats. Semantically similar text lands close together in this high-dimensional space. The model is frozen; all chunks use the same weights.
+      </div>
+      <div class="callout">
+        <strong>Vector index detail</strong>
+        All chunk vectors are stacked into a 2-D NumPy matrix (rows = chunks). This is persisted to disk. For production, use FAISS or a vector DB.
+      </div>
+    </div>
+  </div><!-- offline phase -->
+
+  <!-- ── ONLINE PHASE ── -->
+  <div class="phase online">
+    <div class="phase-header">
+      <div class="phase-dot"></div>
+      <h2>Phase 2 · Online — Query</h2>
+      <div class="badge">Per question</div>
+    </div>
+    <div class="pipeline">
+
+      <div class="node">
+        <div class="node-icon">💬</div>
+        <div class="node-label">User Question</div>
+        <div class="node-sub">Natural language query</div>
+      </div>
+
+      <div class="arrow">
+        <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
+          <path d="M2 8h22M18 3l6 5-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+
+      <div class="node shared">
+        <div class="node-icon">🔢</div>
+        <div class="node-label">Embedding Model</div>
+        <div class="node-sub">Same model as Phase 1</div>
+      </div>
+
+      <div class="arrow">
+        <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
+          <path d="M2 8h22M18 3l6 5-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+
+      <div class="node">
+        <div class="node-icon">📐</div>
+        <div class="node-label">Cosine Similarity</div>
+        <div class="node-sub">index @ query_vec</div>
+      </div>
+
+      <div class="arrow">
+        <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
+          <path d="M2 8h22M18 3l6 5-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+
+      <div class="node">
+        <div class="node-icon">🏆</div>
+        <div class="node-label">Top-K Chunks</div>
+        <div class="node-sub">Most relevant passages</div>
+      </div>
+
+      <div class="arrow">
+        <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
+          <path d="M2 8h22M18 3l6 5-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+
+      <div class="node">
+        <div class="node-icon">📝</div>
+        <div class="node-label">LLM Prompt</div>
+        <div class="node-sub">chunks + question injected</div>
+      </div>
+
+      <div class="arrow to-answer">
+        <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
+          <path d="M2 8h22M18 3l6 5-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+
+      <div class="node answer">
+        <div class="node-icon">✅</div>
+        <div class="node-label">Answer</div>
+        <div class="node-sub">Grounded in your docs</div>
+      </div>
+
+    </div><!-- pipeline -->
+
+    <div class="callout-strip">
+      <div class="callout">
+        <strong>Cosine similarity</strong>
+        <code>scores = index @ query_vec</code> — a single matrix multiply. Score = cos θ between two vectors. 1.0 = identical direction. The LLM never touches the full document set — only the top-K passages.
+      </div>
+      <div class="callout">
+        <strong>Why the same embedding model?</strong>
+        Chunks and the query must live in the <em>same vector space</em> to be comparable. Using different models would be like measuring distance with different rulers.
+      </div>
+      <div class="callout">
+        <strong>Prompt construction</strong>
+        The retrieved chunks are pasted into a system message: "Use only the context below to answer." This grounds the LLM and prevents hallucination on topics outside the documents.
+      </div>
+    </div>
+  </div><!-- online phase -->
+
+</div><!-- phases -->
+
+<!-- ════════════════════════════ COMPARE ════════════════════════════ -->
+<div class="compare" style="margin-top:48px;">
+  <div class="compare-card without">
+    <h3>❌ Without RAG</h3>
+    <p>The LLM answers from <strong>training data alone</strong>. It may hallucinate facts it wasn't trained on, give outdated information, or confidently make up details about <em>your</em> private documents it has never seen.</p>
+  </div>
+  <div class="compare-card with">
+    <h3>✅ With RAG</h3>
+    <p>The LLM only sees the <strong>retrieved excerpts</strong> and is instructed to answer from them. If the answer isn't in the retrieved chunks, it says so — no hallucination about content outside its context window.</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════ STUDENT GUIDE ════════════════════════════ -->
+<div class="guide" style="margin-top:52px;">
+  <h2>Student Pipeline <span>Walk-Through</span></h2>
+  <div class="steps">
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h3>Chunking — Slice the documents into pieces</h3>
+        <p>A long document is too big to search precisely. We slide a window of, say, 100 words across the text, moving 50 words at a time (50-word overlap). Each window = one <em>chunk</em>. Overlap ensures that a sentence spanning two windows is fully captured in at least one of them. Think of it like tearing a book into index cards where consecutive cards share a few lines.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h3>Indexing — Turn each chunk into a number vector</h3>
+        <p>We pass every chunk through a <strong>sentence-transformer</strong> model, which outputs a vector of ~384 numbers (an <em>embedding</em>). These numbers encode the <em>meaning</em> of the text — similar sentences get similar vectors. All chunk vectors are stacked into a matrix: the <strong>vector index</strong>. This is done once and saved to disk.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h3>Retrieval — Find what's relevant using cosine similarity</h3>
+        <p>When a user asks a question, we embed it with the <em>same</em> model to get a query vector. Then one line of NumPy — <code>scores = index @ query_vec</code> — computes how similar the question is to every chunk at once. We pick the top-K highest-scoring chunks. This is the "search" step. No keyword matching — pure semantic geometry.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h3>Generation — Ask the LLM with grounded context</h3>
+        <p>We build a prompt that says: "Here are relevant excerpts from the documents: [top-K chunks]. Using only these, answer: [user question]." The LLM sees <strong>only the retrieved chunks</strong>, not the full corpus. It can now give a precise, sourced answer. If the chunks don't contain the answer, a well-prompted model will say so rather than hallucinating.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>RAG Teaching Reference · Built for classroom use</footer>
+
+</body>
+</html>
