@@ -3,7 +3,7 @@
 # dependencies = [
 #   "sentence-transformers>=3.0",
 #   "numpy>=1.24",
-#   "anthropic>=0.45",
+#   "openai>=1.0",
 # ]
 # ///
 """
@@ -32,10 +32,16 @@ THE PIPELINE (read the code in this order):
   │  Top-K chunks + Query → LLM prompt → Grounded answer                  │
   └───────────────────────────────────────────────────────────────────────┘
 
-QUICK START:
-  export ANTHROPIC_API_KEY="sk-..."
+QUICK START (OpenAI):
+  export OPENAI_API_KEY="sk-..."
   uv run rag.py                          # interactive Q&A loop
   uv run rag.py "What is attention?"     # single question then exit
+
+QUICK START (LiteLLM proxy):
+  export OPENAI_API_KEY="anything"
+  export LLM_BASE_URL="http://localhost:4000"
+  export LLM_MODEL="ollama/llama3"       # any model your proxy exposes
+  uv run rag.py
 
   uv automatically installs dependencies from the # /// script block above.
 """
@@ -45,8 +51,8 @@ import sys
 import textwrap
 
 import numpy as np
+from openai import OpenAI
 from sentence_transformers import SentenceTransformer
-import anthropic
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -61,6 +67,9 @@ EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 CHUNK_SIZE    = 150   # maximum words per chunk
 CHUNK_OVERLAP = 30    # words shared between consecutive chunks
 TOP_K         = 3     # how many chunks to pass to the LLM
+
+LLM_MODEL    = os.getenv("LLM_MODEL", "gpt-4o-mini")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "")  # leave empty for OpenAI; set to LiteLLM proxy URL otherwise
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -241,6 +250,7 @@ def chunk_document(text: str, chunk_size: int = CHUNK_SIZE,
         chunk = " ".join(words[start:end])
         chunks.append(chunk.strip())
         start += chunk_size - overlap   # slide window forward
+    #print (chunks)
     return chunks
 
 
@@ -249,6 +259,7 @@ def build_corpus(documents: list[str]) -> list[str]:
     corpus = []
     for doc in documents:
         corpus.extend(chunk_document(doc))
+    #print(corpus)
     return corpus
 
 
@@ -275,6 +286,7 @@ def build_index(corpus: list[str], model: SentenceTransformer) -> np.ndarray:
     print(f"  Embedding {len(corpus)} chunks with '{EMBEDDING_MODEL}' …")
     embeddings = model.encode(corpus, show_progress_bar=False,
                               normalize_embeddings=True)
+    #print(embeddings)
     return embeddings  # numpy array, shape (N, D)
 
 
@@ -311,14 +323,17 @@ def retrieve(query: str, model: SentenceTransformer,
 
 def generate(query: str, context_chunks: list[str]) -> str:
     """
-    Send the user `query` to Claude together with the retrieved `context_chunks`.
+    Send the user `query` to an OpenAI-compatible endpoint (OpenAI or LiteLLM proxy)
+    together with the retrieved `context_chunks`.
 
     The system prompt does two important things:
       1. Tells the model to ground its answer in the provided context only.
       2. Tells the model to say "I don't know" if the context is insufficient,
          rather than hallucinating an answer.
     """
-    client  = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from the environment
+    client = OpenAI(
+        base_url=LLM_BASE_URL if LLM_BASE_URL else None,  # None → OpenAI default
+    )
     context = "\n\n---\n\n".join(context_chunks)
 
     system_prompt = (
@@ -329,13 +344,15 @@ def generate(query: str, context_chunks: list[str]) -> str:
         f"CONTEXT:\n{context}"
     )
 
-    response = client.messages.create(
-        model      = "claude-sonnet-4-6",
+    response = client.chat.completions.create(
+        model      = LLM_MODEL,
         max_tokens = 512,
-        system     = system_prompt,
-        messages   = [{"role": "user", "content": query}],
+        messages   = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": query},
+        ],
     )
-    return response.content[0].text
+    return response.choices[0].message.content
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -344,10 +361,11 @@ def generate(query: str, context_chunks: list[str]) -> str:
 
 def main():
     # Guard: fail early with a clear message if the API key is missing
-    if not os.getenv("ANTHROPIC_API_KEY"):
+    if not os.getenv("OPENAI_API_KEY"):
         sys.exit(
-            "Error: ANTHROPIC_API_KEY is not set.\n"
-            "Run:  export ANTHROPIC_API_KEY='sk-...'"
+            "Error: OPENAI_API_KEY is not set.\n"
+            "Run:  export OPENAI_API_KEY='sk-...'\n"
+            "For a LiteLLM proxy you can set it to any non-empty string."
         )
 
     print("=" * 62)
